@@ -1,65 +1,183 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState } from 'react';
+
+// 1. Definition of the 10 Mock MET Questions
+const MOCK_QUESTIONS = [
+  {
+    id: 1,
+    question: "Choose the correct option: By the time Marcela finishes her studies, she _______ English fluently.",
+    options: ["will speak", "will have spoken", "is speaking", "speaks"],
+    answer: "will have spoken"
+  },
+  {
+    id: 2,
+    question: "If I _______ more time last night, I would have reviewed the MET listening sections.",
+    options: ["had", "have had", "had had", "would have"],
+    answer: "had had"
+  },
+  {
+    id: 3,
+    question: "The director insisted that the exam _______ postponed immediately.",
+    options: ["be", "is", "was", "to be"],
+    answer: "be"
+  },
+  {
+    id: 4,
+    question: "Rarely _______ such a comprehensive language assessment framework.",
+    options: ["we have seen", "have we seen", "we saw", "do we saw"],
+    answer: "have we seen"
+  },
+  {
+    id: 5,
+    question: "Marcela is looking forward to _______ her upcoming evaluation results.",
+    options: ["receive", "receiving", "received", "be receiving"],
+    answer: "receiving"
+  },
+  {
+    id: 6,
+    question: "Despite _______ hard all weekend, he still found the reading module challenging.",
+    options: ["study", "studied", "studying", "he studied"],
+    answer: "studying"
+  },
+  {
+    id: 7,
+    question: "I would rather you _______ the speaking task before the countdown ends.",
+    options: ["finish", "finished", "have finished", "will finish"],
+    answer: "finished"
+  },
+  {
+    id: 8,
+    question: "The exam instructions were _______ complex that many students asked for clarification.",
+    options: ["such", "so", "too", "very"],
+    answer: "so"
+  },
+  {
+    id: 9,
+    question: "Hardly had the listening audio started _______ the electricity went out.",
+    options: ["than", "when", "then", "that"],
+    answer: "when"
+  },
+  {
+    id: 10,
+    question: "She acted as though she _______ the answers to all the grammar items.",
+    options: ["knows", "knowed", "knew", "has known"],
+    answer: "knew"
+  }
+];
 
 export default function Home() {
+  // 2. State Management for the UI Flow
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [score, setScore] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
+
+  const currentQuestion = MOCK_QUESTIONS[currentQuestionIndex];
+
+  // 3. Action Handlers
+  const handleOptionClick = (option: string) => {
+    setSelectedAnswer(option);
+  };
+
+  const handleNextClick = () => {
+    if (selectedAnswer === currentQuestion.answer) {
+      setScore((prev) => prev + 1);
+    }
+
+    // Reset selection for the next screen
+    setSelectedAnswer(null);
+
+    if (currentQuestionIndex + 1 < MOCK_QUESTIONS.length) {
+      setCurrentQuestionIndex((prev) => prev + 1);
+    } else {
+      setIsFinished(true);
+    }
+  };
+
+  const resetQuiz = () => {
+    setCurrentQuestionIndex(0);
+    setSelectedAnswer(null);
+    setScore(0);
+    setIsFinished(false);
+  };
+
+  // 4. Render Interfaces
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-gray-800">
+      <div className="w-full max-w-2xl bg-white rounded-xl shadow-md p-8 border border-gray-100">
+        <h1 className="text-2xl font-bold border-b pb-4 mb-6 text-blue-600">
+          MET Simulator MVP 1 — Practice Form
+        </h1>
+
+        {!isFinished ? (
+          <div>
+            {/* Progress indicator */}
+            <div className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Question {currentQuestionIndex + 1} of {MOCK_QUESTIONS.length}
+            </div>
+
+            {/* Question Text */}
+            <h2 className="text-xl font-medium mb-6">
+              {currentQuestion.question}
+            </h2>
+
+            {/* Multiple Choice Layout */}
+            <div className="space-y-3 mb-8">
+              {currentQuestion.options.map((option, index) => {
+                const isSelected = selectedAnswer === option;
+                return (
+                  <button
+                    key={index}
+                    onClick={() => handleOptionClick(option)}
+                    className={`w-full text-left px-5 py-4 rounded-lg border transition-all ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50 font-medium text-blue-700'
+                        : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    <span className="inline-block mr-3 font-semibold text-gray-400">
+                      {String.fromCharCode(65 + index)}.
+                    </span>
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Actions Footer */}
+            <div className="flex justify-end">
+              <button
+                onClick={handleNextClick}
+                disabled={!selectedAnswer}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors shadow-sm"
+              >
+                {currentQuestionIndex + 1 === MOCK_QUESTIONS.length ? 'Finish Test' : 'Next Question'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Final Score Interface */
+          <div className="text-center py-6">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Simulation Complete!</h2>
+            <p className="text-gray-500 mb-6">Here is how Marcela performed on this grammar run:</p>
+            
+            <div className="inline-block bg-blue-50 px-8 py-6 rounded-full mb-8">
+              <span className="text-5xl font-black text-blue-600">{score}</span>
+              <span className="text-xl text-blue-400 font-bold"> / {MOCK_QUESTIONS.length}</span>
+            </div>
+
+            <div>
+              <button
+                onClick={resetQuiz}
+                className="px-6 py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 font-medium rounded-lg transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
