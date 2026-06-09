@@ -1,8 +1,6 @@
 'use client';
-
 import React, { useState } from 'react';
 
-// 1. Definition of the 10 Mock MET Questions
 const MOCK_QUESTIONS = [
   {
     id: 1,
@@ -67,7 +65,7 @@ const MOCK_QUESTIONS = [
 ];
 
 export default function Home() {
-  // 2. State Management for the UI Flow
+  
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [score, setScore] = useState(0);
@@ -75,8 +73,9 @@ export default function Home() {
 
   const currentQuestion = MOCK_QUESTIONS[currentQuestionIndex];
 
-  // 3. Action Handlers
   const handleOptionClick = (option: string) => {
+    // Prevent changing answer once selected for this question
+    if (selectedAnswer !== null) return;
     setSelectedAnswer(option);
   };
 
@@ -85,7 +84,6 @@ export default function Home() {
       setScore((prev) => prev + 1);
     }
 
-    // Reset selection for the next screen
     setSelectedAnswer(null);
 
     if (currentQuestionIndex + 1 < MOCK_QUESTIONS.length) {
@@ -102,7 +100,6 @@ export default function Home() {
     setIsFinished(false);
   };
 
-  // 4. Render Interfaces
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-gray-800">
       <div className="w-full max-w-2xl bg-white rounded-xl shadow-md p-8 border border-gray-100">
@@ -112,31 +109,47 @@ export default function Home() {
 
         {!isFinished ? (
           <div>
-            {/* Progress indicator */}
             <div className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">
               Question {currentQuestionIndex + 1} of {MOCK_QUESTIONS.length}
             </div>
 
-            {/* Question Text */}
             <h2 className="text-xl font-medium mb-6">
               {currentQuestion.question}
             </h2>
 
-            {/* Multiple Choice Layout */}
             <div className="space-y-3 mb-8">
               {currentQuestion.options.map((option, index) => {
                 const isSelected = selectedAnswer === option;
+                const hasAnswered = selectedAnswer !== null;
+                const isCorrectOption = option === currentQuestion.answer;
+
+                // Dynamic Styling Logic for instant feedback
+                let buttonStyle = "border-gray-200 hover:bg-gray-50 text-gray-700";
+                
+                if (hasAnswered) {
+                  if (isCorrectOption) {
+                    // Correct option always glows green once clicked
+                    buttonStyle = "border-green-500 bg-green-50 font-medium text-green-700 shadow-sm";
+                  } else if (isSelected) {
+                    // If the user selected this one and it's wrong, turn it red
+                    buttonStyle = "border-red-500 bg-red-50 font-medium text-red-700";
+                  } else {
+                    // Dull out the other wrong answers
+                    buttonStyle = "border-gray-150 bg-gray-50 text-gray-400 opacity-60 cursor-not-allowed";
+                  }
+                } else {
+                  // Normal unselected look
+                  buttonStyle = "border-gray-200 hover:bg-gray-50 text-gray-700";
+                }
+
                 return (
                   <button
                     key={index}
+                    disabled={hasAnswered}
                     onClick={() => handleOptionClick(option)}
-                    className={`w-full text-left px-5 py-4 rounded-lg border transition-all ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50 font-medium text-blue-700'
-                        : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                    }`}
+                    className={`w-full text-left px-5 py-4 rounded-lg border transition-all duration-150 ${buttonStyle}`}
                   >
-                    <span className="inline-block mr-3 font-semibold text-gray-400">
+                    <span className="inline-block mr-3 font-semibold">
                       {String.fromCharCode(65 + index)}.
                     </span>
                     {option}
@@ -145,7 +158,6 @@ export default function Home() {
               })}
             </div>
 
-            {/* Actions Footer */}
             <div className="flex justify-end">
               <button
                 onClick={handleNextClick}
@@ -157,7 +169,6 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          /* Final Score Interface */
           <div className="text-center py-6">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Simulation Complete!</h2>
             <p className="text-gray-500 mb-6">Here is how Marcela performed on this grammar run:</p>
