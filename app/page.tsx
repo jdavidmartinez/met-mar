@@ -1,16 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MET_BANK_QUESTIONS } from './data/questions';
+import { MET_EXAM_FORMS, Question } from './data/questions';
 
 export default function Home() {
   // --- State Definitions ---
   const [studentName, setStudentName] = useState<string>('');
   const [nameInput, setNameInput] = useState<string>('');
+  const [selectedForm, setSelectedForm] = useState<string>('Form A'); // Default test form
   const [isExamStarted, setIsExamStarted] = useState<boolean>(false);
-
-  // NEW STATE: Stores the randomized subset of questions for the active session
-  const [shuffledQuestions, setShuffledQuestions] = useState<typeof MET_BANK_QUESTIONS>([]);
+  const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -20,7 +19,7 @@ export default function Home() {
   // Time management in seconds (65 minutes = 3900 seconds)
   const [timeLeft, setTimeLeft] = useState(3900);
 
-  // MODIFIED: Extract the active question from the dynamic shuffled array instead of the static bank
+  // Active question extracted from the dynamic shuffled array
   const currentQuestion = shuffledQuestions[currentQuestionIndex];
 
   // --- Effects ---
@@ -41,15 +40,14 @@ export default function Home() {
   }, [timeLeft, isFinished, isExamStarted]);
 
   // --- Helper Functions ---
-  // Formats total seconds into a readable "MM:SS" string
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // NEW HELPER: Fisher-Yates shuffle algorithm to randomize questions unbiasedly
-  const shuffleArray = (array: typeof MET_BANK_QUESTIONS) => {
+  // Fisher-Yates shuffle algorithm to randomize the selected form questions
+  const shuffleArray = (array: Question[]) => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -58,15 +56,16 @@ export default function Home() {
     return shuffled;
   };
 
-  // Triggers the exam initialization, including the background question randomization
+  // Triggers the exam initialization with the specified form choices
   const handleStartExam = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameInput.trim()) return;
     
     setStudentName(nameInput.trim());
     
-    // Randomize the centralized question bank before launching the test screen
-    const randomizedQuestions = shuffleArray(MET_BANK_QUESTIONS);
+    // Target only the chosen form's database slice, then shuffle it
+    const baseQuestions = MET_EXAM_FORMS[selectedForm] || [];
+    const randomizedQuestions = shuffleArray(baseQuestions);
     setShuffledQuestions(randomizedQuestions);
     
     setIsExamStarted(true);
@@ -91,9 +90,9 @@ export default function Home() {
     }
   };
 
-  // Resets the simulator and shuffles the bank again for a completely new sequence
   const resetQuiz = () => {
-    const randomizedQuestions = shuffleArray(MET_BANK_QUESTIONS);
+    const baseQuestions = MET_EXAM_FORMS[selectedForm] || [];
+    const randomizedQuestions = shuffleArray(baseQuestions);
     setShuffledQuestions(randomizedQuestions);
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
@@ -114,24 +113,27 @@ export default function Home() {
     setIsFinished(false);
   };
 
-  // Maps score to CEFR level dynamically using the student's name
+  // Maps score dynamically dynamically weighting the total length of the specific form
   const getCEFRLevel = (finalScore: number) => {
     const name = studentName || 'The candidate';
-    if (finalScore >= 43) {
+    const totalItems = shuffledQuestions.length;
+    const successRatio = finalScore / totalItems;
+
+    if (successRatio >= 0.86) {
       return { 
         level: 'C1 (Advanced)', 
         color: 'text-emerald-700 bg-emerald-50 border-emerald-200', 
         desc: `${name} demonstrates an advanced and fluent command of the language, ideal for highly demanding professional environments or international postgraduate studies.` 
       };
     }
-    if (finalScore >= 32) {
+    if (successRatio >= 0.64) {
       return { 
         level: 'B2 (Upper-Intermediate)', 
         color: 'text-blue-700 bg-blue-50 border-blue-200', 
         desc: `${name} has a solid upper-intermediate level. This is the gold standard required by most global universities and corporations.` 
       };
     }
-    if (finalScore >= 20) {
+    if (successRatio >= 0.40) {
       return { 
         level: 'B1 (Intermediate)', 
         color: 'text-amber-700 bg-amber-50 border-amber-200', 
@@ -167,7 +169,7 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-gray-800">
       <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 border border-gray-100">
         
-        {/* --- SCREEN 1: Welcome / Name Registration --- */}
+        {/* --- SCREEN 1: Welcome / Name & Form Registration --- */}
         {!isExamStarted ? (
           <div className="py-4">
             <div className="text-center mb-8">
@@ -175,7 +177,7 @@ export default function Home() {
                 MET Exam Simulator
               </h1>
               <p className="text-gray-500 text-sm">
-                Complete 50-question baseline diagnostics portal
+                Complete multi-form diagnostic evaluation portal
               </p>
             </div>
 
@@ -190,9 +192,28 @@ export default function Home() {
                   required
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
-                  placeholder="e.g., Marcela Martinez"
+                  placeholder="e.g., Marcela"
                   className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-base"
                 />
+              </div>
+
+              {/* NEW CHOOSE FORM SELECTION DROPDOWN */}
+              <div>
+                <label htmlFor="exam-form" className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                  Select Exam Form Version
+                </label>
+                <select
+                  id="exam-form"
+                  value={selectedForm}
+                  onChange={(e) => setSelectedForm(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-base appearance-none cursor-pointer"
+                >
+                  {Object.keys(MET_EXAM_FORMS).map((formName) => (
+                    <option key={formName} value={formName}>
+                      {formName} ({MET_EXAM_FORMS[formName].length} Questions)
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <button
@@ -200,7 +221,7 @@ export default function Home() {
                 disabled={!nameInput.trim()}
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all shadow-sm flex justify-center items-center space-x-2"
               >
-                <span>Initialize Simulation</span>
+                <span>Initialize {selectedForm}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                 </svg>
@@ -210,11 +231,11 @@ export default function Home() {
         ) : (
           /* --- EXAM RENDERING INTERFACES --- */
           <div>
-            {/* Simulator Header with Integrated Countdown Timer */}
+            {/* Simulator Header */}
             <div className="flex justify-between items-center border-b pb-4 mb-6">
               <div>
                 <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-                  MET Exam Simulator
+                  MET Exam Simulator ({selectedForm})
                 </h1>
                 <span className="text-xs text-gray-400 font-medium block">
                   Candidate: <strong className="text-gray-700 font-semibold">{studentName}</strong>
@@ -339,13 +360,13 @@ export default function Home() {
                     onClick={resetQuiz}
                     className="w-full sm:w-auto px-6 py-2.5 border border-blue-600 text-blue-600 hover:bg-blue-50 font-medium rounded-lg transition-colors"
                   >
-                    Retake Full Test
+                    Retake {selectedForm}
                   </button>
                   <button
                     onClick={handleLogOut}
                     className="w-full sm:w-auto px-6 py-2.5 text-gray-500 hover:text-gray-700 font-medium rounded-lg transition-colors text-sm"
                   >
-                    Change Candidate
+                    Change Candidate / Form
                   </button>
                 </div>
               </div>
