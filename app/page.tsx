@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MET_BANK_QUESTIONS } from './data/questions';
 
 export default function Home() {
@@ -9,7 +9,37 @@ export default function Home() {
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
+  // NUEVO ESTADO: Tiempo en segundos (65 minutos = 3900 segundos)
+  const [timeLeft, setTimeLeft] = useState(3900);
+
   const currentQuestion = MET_BANK_QUESTIONS[currentQuestionIndex];
+
+  // NUEVO EFECTO: Controlador del temporizador en tiempo real
+  useEffect(() => {
+    // Si el examen ya terminó, no seguimos descontando tiempo
+    if (isFinished) return;
+
+    // Si el tiempo se agota, forzamos la finalización del examen
+    if (timeLeft <= 0) {
+      setIsFinished(true);
+      return;
+    }
+
+    // Configurar el intervalo para que reste 1 segundo cada 1000ms
+    const timerInterval = setInterval(() => {
+      setTimeLeft((prevTime) => prevTime - 1);
+    }, 1000);
+
+    // Limpieza del intervalo para evitar fugas de memoria al desmontar el componente
+    return () => clearInterval(timerInterval);
+  }, [timeLeft, isFinished]);
+
+  // NUEVA FUNCIÓN: Formatea los segundos en un string legible "MM:SS"
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
 
   const handleOptionClick = (option: string) => {
     if (selectedAnswer !== null) return;
@@ -34,10 +64,10 @@ export default function Home() {
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
     setScore(0);
+    setTimeLeft(3900); // Reiniciar el reloj a 65 minutos
     setIsFinished(false);
   };
 
-  // NUEVA FUNCIÓN: Calcula el nivel MCER y el diseño de la tarjeta final basado en el Score
   const getCEFRLevel = (finalScore: number) => {
     if (finalScore >= 43) {
       return { level: 'C1 (Advanced)', color: 'text-emerald-700 bg-emerald-50 border-emerald-200', desc: 'Marcela demuestra un dominio avanzado y fluido del idioma, ideal para entornos profesionales de alta exigencia o postgrados internacionales.' };
@@ -73,13 +103,30 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-gray-800">
       <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 border border-gray-100">
         
+        {/* Encabezado con el Reloj Integrado */}
         <div className="flex justify-between items-center border-b pb-4 mb-6">
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-            MET Exam Simulator
-          </h1>
-          <span className="text-sm font-semibold text-gray-400">
-            Full Block Mode (50 Q)
-          </span>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+              MET Exam Simulator
+            </h1>
+            <span className="text-xs text-gray-400 font-medium block">
+              Full Reading & Grammar Block
+            </span>
+          </div>
+
+          {/* NUEVO UI COMPONENT: Reloj Dinámico */}
+          {!isFinished && (
+            <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-mono text-lg font-bold border transition-colors ${
+              timeLeft < 300 
+                ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' // Alerta roja si quedan menos de 5 minutos
+                : 'bg-gray-50 border-gray-200 text-gray-700'
+            }`}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+              <span>{formatTime(timeLeft)}</span>
+            </div>
+          )}
         </div>
 
         {!isFinished && activeStyles ? (
@@ -147,9 +194,11 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          /* Reporte Final de Resultados con Nivel MCER */
+          /* Reporte Final de Resultados */
           <div className="text-center py-6">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Simulation Complete!</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              {timeLeft <= 0 ? 'Time is Up!' : 'Simulation Complete!'}
+            </h2>
             <p className="text-gray-500 mb-8">Here is Marcela's estimated English proficiency profile:</p>
             
             <div className="inline-block bg-gray-50 border border-gray-100 px-10 py-6 rounded-2xl mb-6 shadow-sm">
@@ -158,7 +207,6 @@ export default function Home() {
               <p className="text-xs text-gray-400 mt-2 uppercase tracking-wide font-semibold">Correct Answers</p>
             </div>
 
-            {/* NUEVA SECCIÓN: Tarjeta Dinámica de Nivel MCER */}
             {resultData && (
               <div className={`w-full ${resultData.color} border rounded-xl p-6 mb-8 text-left max-w-md mx-auto shadow-sm`}>
                 <span className="text-xs font-bold uppercase tracking-wider opacity-60 block mb-1">
