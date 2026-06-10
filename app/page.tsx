@@ -7,7 +7,12 @@ export default function Home() {
   // --- State Definitions ---
   const [studentName, setStudentName] = useState<string>('');
   const [nameInput, setNameInput] = useState<string>('');
-  const [selectedForm, setSelectedForm] = useState<string>('Form A'); // Default test form
+  const [selectedForm, setSelectedForm] = useState<string>('Form A');
+  
+  // NEW STATES: Mode selection configuration
+  const [testMode, setTestMode] = useState<'simulation' | 'practice'>('simulation');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Grammar');
+
   const [isExamStarted, setIsExamStarted] = useState<boolean>(false);
   const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
 
@@ -25,7 +30,8 @@ export default function Home() {
   // --- Effects ---
   // Real-time countdown timer logic
   useEffect(() => {
-    if (!isExamStarted || isFinished) return;
+    // Only countdown if the exam has started, is a simulation, and is not finished
+    if (!isExamStarted || testMode !== 'simulation' || isFinished) return;
 
     if (timeLeft <= 0) {
       setIsFinished(true);
@@ -37,7 +43,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(timerInterval);
-  }, [timeLeft, isFinished, isExamStarted]);
+  }, [timeLeft, isFinished, isExamStarted, testMode]);
 
   // --- Helper Functions ---
   const formatTime = (seconds: number) => {
@@ -46,7 +52,7 @@ export default function Home() {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // Fisher-Yates shuffle algorithm to randomize the selected form questions
+  // Fisher-Yates shuffle algorithm to randomize questions
   const shuffleArray = (array: Question[]) => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -56,16 +62,22 @@ export default function Home() {
     return shuffled;
   };
 
-  // Triggers the exam initialization with the specified form choices
+  // Triggers the exam initialization filtering by mode and category preferences
   const handleStartExam = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameInput.trim()) return;
     
     setStudentName(nameInput.trim());
     
-    // Target only the chosen form's database slice, then shuffle it
-    const baseQuestions = MET_EXAM_FORMS[selectedForm] || [];
-    const randomizedQuestions = shuffleArray(baseQuestions);
+    // Extract base data from the chosen form form
+    let targetQuestions = MET_EXAM_FORMS[selectedForm] || [];
+    
+    // MODIFIED: Filter down to a specific category if Practice Mode is active
+    if (testMode === 'practice') {
+      targetQuestions = targetQuestions.filter(q => q.category === selectedCategory);
+    }
+    
+    const randomizedQuestions = shuffleArray(targetQuestions);
     setShuffledQuestions(randomizedQuestions);
     
     setIsExamStarted(true);
@@ -91,8 +103,11 @@ export default function Home() {
   };
 
   const resetQuiz = () => {
-    const baseQuestions = MET_EXAM_FORMS[selectedForm] || [];
-    const randomizedQuestions = shuffleArray(baseQuestions);
+    let targetQuestions = MET_EXAM_FORMS[selectedForm] || [];
+    if (testMode === 'practice') {
+      targetQuestions = targetQuestions.filter(q => q.category === selectedCategory);
+    }
+    const randomizedQuestions = shuffleArray(targetQuestions);
     setShuffledQuestions(randomizedQuestions);
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
@@ -113,37 +128,44 @@ export default function Home() {
     setIsFinished(false);
   };
 
-  // Maps score dynamically dynamically weighting the total length of the specific form
+  // Maps score dynamically based on user context and targeted evaluation size
   const getCEFRLevel = (finalScore: number) => {
     const name = studentName || 'The candidate';
     const totalItems = shuffledQuestions.length;
+    
+    // Avoid division by zero bugs
+    if (totalItems === 0) return { level: 'N/A', color: 'bg-gray-50', desc: '' };
+    
     const successRatio = finalScore / totalItems;
+
+    // Display localized feedback for specific skills if in practice mode
+    const scopeLabel = testMode === 'practice' ? `in this ${selectedCategory} module` : 'overall';
 
     if (successRatio >= 0.86) {
       return { 
         level: 'C1 (Advanced)', 
         color: 'text-emerald-700 bg-emerald-50 border-emerald-200', 
-        desc: `${name} demonstrates an advanced and fluent command of the language, ideal for highly demanding professional environments or international postgraduate studies.` 
+        desc: `${name} demonstrates an advanced and fluent command ${scopeLabel}, ideal for high-tier academic or professional standards.` 
       };
     }
     if (successRatio >= 0.64) {
       return { 
         level: 'B2 (Upper-Intermediate)', 
         color: 'text-blue-700 bg-blue-50 border-blue-200', 
-        desc: `${name} has a solid upper-intermediate level. This is the gold standard required by most global universities and corporations.` 
+        desc: `${name} displays a solid upper-intermediate capacity ${scopeLabel}. This matches the gold standard metric across most institutions.` 
       };
     }
     if (successRatio >= 0.40) {
       return { 
         level: 'B1 (Intermediate)', 
         color: 'text-amber-700 bg-amber-50 border-amber-200', 
-        desc: `${name} understands the core points of the exam but needs to reinforce complex vocabulary and advanced grammatical structures.` 
+        desc: `${name} handles the core fundamentals ${scopeLabel} but needs targeted iterations to patch up structural vulnerabilities.` 
       };
     }
     return { 
       level: 'A2 (Elementary or lower)', 
       color: 'text-rose-700 bg-rose-50 border-rose-200', 
-      desc: `A baseline evaluation level. An exhaustive review of grammatical foundations is highly recommended for ${name} before taking the official test.` 
+      desc: `A baseline performance score. Comprehensive reviews and diagnostic vocabulary drills are recommended for ${name}.` 
     };
   };
 
@@ -169,7 +191,7 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-gray-800">
       <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 border border-gray-100">
         
-        {/* --- SCREEN 1: Welcome / Name & Form Registration --- */}
+        {/* --- SCREEN 1: Welcome / Advanced Configuration --- */}
         {!isExamStarted ? (
           <div className="py-4">
             <div className="text-center mb-8">
@@ -182,6 +204,7 @@ export default function Home() {
             </div>
 
             <form onSubmit={handleStartExam} className="space-y-5 max-w-sm mx-auto">
+              {/* Input Candidate Name */}
               <div>
                 <label htmlFor="student-name" className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                   Enter Candidate Name
@@ -197,7 +220,7 @@ export default function Home() {
                 />
               </div>
 
-              {/* NEW CHOOSE FORM SELECTION DROPDOWN */}
+              {/* Select Exam Version */}
               <div>
                 <label htmlFor="exam-form" className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                   Select Exam Form Version
@@ -210,18 +233,71 @@ export default function Home() {
                 >
                   {Object.keys(MET_EXAM_FORMS).map((formName) => (
                     <option key={formName} value={formName}>
-                      {formName} ({MET_EXAM_FORMS[formName].length} Questions)
+                      {formName} (50 Questions)
                     </option>
                   ))}
                 </select>
               </div>
+
+              {/* NEW CHOOSE TEST MODE TOGGLE CONTROLS */}
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                  Choose Practice Target Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setTestMode('simulation')}
+                    className={`py-2 text-sm font-semibold rounded-md transition-all ${
+                      testMode === 'simulation' 
+                        ? 'bg-white text-blue-600 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Full Simulation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTestMode('practice')}
+                    className={`py-2 text-sm font-semibold rounded-md transition-all ${
+                      testMode === 'practice' 
+                        ? 'bg-white text-blue-600 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Section Practice
+                  </button>
+                </div>
+              </div>
+
+              {/* NEW CHOOSE CATEGORY TARGET SUB-DROPDOWN */}
+              {testMode === 'practice' && (
+                <div className="animate-fadeIn">
+                  <label htmlFor="practice-category" className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                    Select Skill Section Focus
+                  </label>
+                  <select
+                    id="practice-category"
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-base appearance-none cursor-pointer"
+                  >
+                    <option value="Grammar">Grammar Structure (15 Qs)</option>
+                    <option value="Vocabulary">Vocabulary & Collocations (15 Qs)</option>
+                    <option value="Cloze">Cloze Passages Context (5 Qs)</option>
+                    <option value="Reading">Reading Comprehension (15 Qs)</option>
+                  </select>
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={!nameInput.trim()}
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all shadow-sm flex justify-center items-center space-x-2"
               >
-                <span>Initialize {selectedForm}</span>
+                <span>
+                  {testMode === 'simulation' ? `Launch ${selectedForm}` : `Practice ${selectedCategory}`}
+                </span>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                 </svg>
@@ -235,25 +311,29 @@ export default function Home() {
             <div className="flex justify-between items-center border-b pb-4 mb-6">
               <div>
                 <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-                  MET Exam Simulator ({selectedForm})
+                  MET {testMode === 'simulation' ? `${selectedForm} Mode` : `${selectedCategory} Drill`}
                 </h1>
                 <span className="text-xs text-gray-400 font-medium block">
                   Candidate: <strong className="text-gray-700 font-semibold">{studentName}</strong>
                 </span>
               </div>
 
-              {/* Dynamic Timer Component */}
-              {!isFinished && (
+              {/* Render countdown timer ONLY during full simulations */}
+              {testMode === 'simulation' && !isFinished ? (
                 <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-mono text-lg font-bold border transition-colors ${
-                  timeLeft < 300 
-                    ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' 
-                    : 'bg-gray-50 border-gray-200 text-gray-700'
+                  timeLeft < 300 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-gray-50 border-gray-200 text-gray-700'
                 }`}>
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                   </svg>
                   <span>{formatTime(timeLeft)}</span>
                 </div>
+              ) : (
+                testMode === 'practice' && !isFinished && (
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-md uppercase tracking-wider">
+                    Untimed Practice
+                  </span>
+                )
               )}
             </div>
 
@@ -322,7 +402,7 @@ export default function Home() {
                     disabled={!selectedAnswer}
                     className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors shadow-sm"
                   >
-                    {currentQuestionIndex + 1 === shuffledQuestions.length ? 'Finish Test' : 'Next Question'}
+                    {currentQuestionIndex + 1 === shuffledQuestions.length ? 'Finish Session' : 'Next Question'}
                   </button>
                 </div>
               </div>
@@ -330,7 +410,7 @@ export default function Home() {
               /* --- SCREEN 3: Final Performance Diagnostic Report --- */
               <div className="text-center py-6">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  {timeLeft <= 0 ? 'Time is Up!' : 'Simulation Complete!'}
+                  {timeLeft <= 0 && testMode === 'simulation' ? 'Time is Up!' : 'Session Complete!'}
                 </h2>
                 <p className="text-gray-500 mb-8">Here is the estimated proficiency profile for {studentName}:</p>
                 
@@ -360,13 +440,13 @@ export default function Home() {
                     onClick={resetQuiz}
                     className="w-full sm:w-auto px-6 py-2.5 border border-blue-600 text-blue-600 hover:bg-blue-50 font-medium rounded-lg transition-colors"
                   >
-                    Retake {selectedForm}
+                    Retake Session
                   </button>
                   <button
                     onClick={handleLogOut}
                     className="w-full sm:w-auto px-6 py-2.5 text-gray-500 hover:text-gray-700 font-medium rounded-lg transition-colors text-sm"
                   >
-                    Change Candidate / Form
+                    Return to Dashboard
                   </button>
                 </div>
               </div>
