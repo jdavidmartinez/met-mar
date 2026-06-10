@@ -8,33 +8,23 @@ export default function Home() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
-
-  // NUEVO ESTADO: Tiempo en segundos (65 minutos = 3900 segundos)
   const [timeLeft, setTimeLeft] = useState(3900);
-
   const currentQuestion = MET_BANK_QUESTIONS[currentQuestionIndex];
 
-  // NUEVO EFECTO: Controlador del temporizador en tiempo real
+  // Controlador del temporizador en tiempo real
   useEffect(() => {
-    // Si el examen ya terminó, no seguimos descontando tiempo
     if (isFinished) return;
-
-    // Si el tiempo se agota, forzamos la finalización del examen
     if (timeLeft <= 0) {
       setIsFinished(true);
       return;
     }
-
-    // Configurar el intervalo para que reste 1 segundo cada 1000ms
     const timerInterval = setInterval(() => {
       setTimeLeft((prevTime) => prevTime - 1);
     }, 1000);
-
-    // Limpieza del intervalo para evitar fugas de memoria al desmontar el componente
     return () => clearInterval(timerInterval);
   }, [timeLeft, isFinished]);
 
-  // NUEVA FUNCIÓN: Formatea los segundos en un string legible "MM:SS"
+  // Formatea los segundos en un string legible "MM:SS"
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
