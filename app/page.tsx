@@ -1,36 +1,70 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MET_EXAM_FORMS, Question } from './data/questions';
 
+// --- Constants ---
+const EXAM_TIME_SECONDS = 3900; // 65 minutes
+
+// --- Helpers & Static Logic ---
+// Moved outside to prevent recreation on every render
+const shuffleArray = (array: Question[]) => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+const getCategoryStyles = (category: string) => {
+  switch (category) {
+    case 'Grammar':
+      return { bg: 'bg-indigo-50 border-indigo-100', text: 'text-indigo-700', label: 'Grammar Structure' };
+    case 'Vocabulary':
+      return { bg: 'bg-amber-50 border-amber-100', text: 'text-amber-700', label: 'Vocabulary & Collocations' };
+    case 'Cloze':
+      return { bg: 'bg-cyan-50 border-cyan-100', text: 'text-cyan-700', label: 'Cloze Passage Context' };
+    case 'Reading':
+      return { bg: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-700', label: 'Reading Comprehension' };
+    default:
+      return { bg: 'bg-gray-50 border-gray-100', text: 'text-gray-700', label: 'General Evaluation' };
+  }
+};
+
+const formatTime = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
 export default function Home() {
-  // --- State Definitions ---
+  // --- State ---
   const [studentName, setStudentName] = useState<string>('');
   const [nameInput, setNameInput] = useState<string>('');
   const [selectedForm, setSelectedForm] = useState<string>('Form A');
-  
-  // NEW STATES: Mode selection configuration
   const [testMode, setTestMode] = useState<'simulation' | 'practice'>('simulation');
   const [selectedCategory, setSelectedCategory] = useState<string>('Grammar');
-
   const [isExamStarted, setIsExamStarted] = useState<boolean>(false);
   const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
-
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
-  
-  // Time management in seconds (65 minutes = 3900 seconds)
-  const [timeLeft, setTimeLeft] = useState(3900);
+  const [timeLeft, setTimeLeft] = useState(EXAM_TIME_SECONDS);
 
-  // Active question extracted from the dynamic shuffled array
+  // --- Derived State ---
   const currentQuestion = shuffledQuestions[currentQuestionIndex];
+  
+  // Memoize styles to avoid recalculation unless the current question changes
+  const activeStyles = useMemo(() => 
+    !isFinished && isExamStarted && currentQuestion 
+      ? getCategoryStyles(currentQuestion.category) 
+      : null
+  , [isFinished, isExamStarted, currentQuestion]);
 
   // --- Effects ---
-  // Real-time countdown timer logic
   useEffect(() => {
-    // Only countdown if the exam has started, is a simulation, and is not finished
     if (!isExamStarted || testMode !== 'simulation' || isFinished) return;
 
     if (timeLeft <= 0) {
@@ -45,54 +79,42 @@ export default function Home() {
     return () => clearInterval(timerInterval);
   }, [timeLeft, isFinished, isExamStarted, testMode]);
 
-  // --- Helper Functions ---
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  // Fisher-Yates shuffle algorithm to randomize questions
-  const shuffleArray = (array: Question[]) => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  // --- Handlers ---
+  const prepareQuestions = () => {
+    const targetQuestions = MET_EXAM_FORMS[selectedForm] || [];
+    
+    if (testMode === 'practice') {
+      return shuffleArray(targetQuestions.filter(q => q.category === selectedCategory));
     }
-    return shuffled;
+
+    // Full Simulation: Isolate, shuffle independently, and reassemble in correct MET order
+    const grammarSec = shuffleArray(targetQuestions.filter(q => q.category === 'Grammar'));
+    const vocabSec = shuffleArray(targetQuestions.filter(q => q.category === 'Vocabulary'));
+    const clozeSec = shuffleArray(targetQuestions.filter(q => q.category === 'Cloze'));
+    const readingSec = shuffleArray(targetQuestions.filter(q => q.category === 'Reading'));
+
+    return [...grammarSec, ...vocabSec, ...clozeSec, ...readingSec];
   };
 
-  // Triggers the exam initialization filtering by mode and category preferences
   const handleStartExam = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameInput.trim()) return;
-    
     setStudentName(nameInput.trim());
-    
-    // Extract base data from the chosen form form
-    let targetQuestions = MET_EXAM_FORMS[selectedForm] || [];
-    
-    // MODIFIED: Filter down to a specific category if Practice Mode is active
-    if (testMode === 'practice') {
-      targetQuestions = targetQuestions.filter(q => q.category === selectedCategory);
-    }
-    
-    const randomizedQuestions = shuffleArray(targetQuestions);
-    setShuffledQuestions(randomizedQuestions);
-    
+    setShuffledQuestions(prepareQuestions());
     setIsExamStarted(true);
   };
 
   const handleOptionClick = (option: string) => {
-    if (selectedAnswer !== null) return;
+    if (selectedAnswer !== null || isFinished) return;
     setSelectedAnswer(option);
   };
 
   const handleNextClick = () => {
+    if (!currentQuestion) return;
+
     if (selectedAnswer === currentQuestion.answer) {
       setScore((prev) => prev + 1);
     }
-
     setSelectedAnswer(null);
 
     if (currentQuestionIndex + 1 < shuffledQuestions.length) {
@@ -103,16 +125,11 @@ export default function Home() {
   };
 
   const resetQuiz = () => {
-    let targetQuestions = MET_EXAM_FORMS[selectedForm] || [];
-    if (testMode === 'practice') {
-      targetQuestions = targetQuestions.filter(q => q.category === selectedCategory);
-    }
-    const randomizedQuestions = shuffleArray(targetQuestions);
-    setShuffledQuestions(randomizedQuestions);
+    setShuffledQuestions(prepareQuestions());
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
     setScore(0);
-    setTimeLeft(3900);
+    setTimeLeft(EXAM_TIME_SECONDS);
     setIsFinished(false);
   };
 
@@ -124,21 +141,19 @@ export default function Home() {
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
     setScore(0);
-    setTimeLeft(3900);
+    setTimeLeft(EXAM_TIME_SECONDS);
     setIsFinished(false);
   };
 
-  // Maps score dynamically based on user context and targeted evaluation size
-  const getCEFRLevel = (finalScore: number) => {
+  // Memoize performance diagnostic report
+  const resultData = useMemo(() => {
+    if (!isFinished) return null;
+
     const name = studentName || 'The candidate';
     const totalItems = shuffledQuestions.length;
-    
-    // Avoid division by zero bugs
     if (totalItems === 0) return { level: 'N/A', color: 'bg-gray-50', desc: '' };
     
-    const successRatio = finalScore / totalItems;
-
-    // Display localized feedback for specific skills if in practice mode
+    const successRatio = score / totalItems;
     const scopeLabel = testMode === 'practice' ? `in this ${selectedCategory} module` : 'overall';
 
     if (successRatio >= 0.86) {
@@ -167,25 +182,7 @@ export default function Home() {
       color: 'text-rose-700 bg-rose-50 border-rose-200', 
       desc: `A baseline performance score. Comprehensive reviews and diagnostic vocabulary drills are recommended for ${name}.` 
     };
-  };
-
-  const getCategoryStyles = (category: string) => {
-    switch (category) {
-      case 'Grammar':
-        return { bg: 'bg-indigo-50 border-indigo-100', text: 'text-indigo-700', label: 'Grammar Structure' };
-      case 'Vocabulary':
-        return { bg: 'bg-amber-50 border-amber-100', text: 'text-amber-700', label: 'Vocabulary & Collocations' };
-      case 'Cloze':
-        return { bg: 'bg-cyan-50 border-cyan-100', text: 'text-cyan-700', label: 'Cloze Passage Context' };
-      case 'Reading':
-        return { bg: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-700', label: 'Reading Comprehension' };
-      default:
-        return { bg: 'bg-gray-50 border-gray-100', text: 'text-gray-700', label: 'General Evaluation' };
-    }
-  };
-
-  const activeStyles = !isFinished && isExamStarted && currentQuestion ? getCategoryStyles(currentQuestion.category) : null;
-  const resultData = isFinished ? getCEFRLevel(score) : null;
+  }, [isFinished, score, studentName, shuffledQuestions.length, testMode, selectedCategory]);
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-gray-800">
@@ -355,6 +352,16 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* NEW FIX: Shared Text Passage Box to resolve missing reading text context */}
+                {currentQuestion.passage && (
+                  <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-5 mb-6 max-h-64 overflow-y-auto shadow-inner text-sm leading-relaxed text-slate-700 whitespace-pre-line font-medium">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 sticky top-0 bg-slate-50 pb-1">
+                      Reading Passage Context:
+                    </div>
+                    {currentQuestion.passage}
+                  </div>
+                )}
+
                 {/* Question Text */}
                 <h3 className="text-xl font-medium mb-6 leading-relaxed">
                   {currentQuestion.question}
@@ -394,6 +401,21 @@ export default function Home() {
                     );
                   })}
                 </div>
+
+                {/* Rationale / Explanation Box: Appears once an answer is selected */}
+                {selectedAnswer !== null && currentQuestion.rationale && (
+                  <div className="mb-8 p-5 bg-blue-50 border-l-4 border-blue-500 rounded-r-xl animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-blue-600">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clipRule="evenodd" />
+                      </svg>
+                      <h4 className="text-sm font-bold text-blue-800 uppercase tracking-wider">Expert Explanation</h4>
+                    </div>
+                    <p className="text-blue-900 text-sm leading-relaxed italic">
+                      {currentQuestion.rationale}
+                    </p>
+                  </div>
+                )}
 
                 {/* Navigation Button Footer */}
                 <div className="flex justify-end border-t pt-4">
