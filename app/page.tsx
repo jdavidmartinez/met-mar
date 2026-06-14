@@ -53,12 +53,12 @@ export default function Home() {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // FIXED PARALLEL PAGINATED PIPELINE: Requests individual chunks and pieces them together safely
+  // LAZY-LOADING BACKGROUND PIPELINE: Bypasses 429 quota limits by fetching sequentially with a 5s delay
   const fetchFullMETSimulation = async () => {
     setIsLoading(true);
     setApiError(null);
     try {
-      // Internal batch-fetching worker targeting specific categories
+      // Reusable internal fetching block
       const fetchSection = async (category: 'Grammar' | 'Vocabulary' | 'Cloze' | 'Reading', limit: number) => {
         const response = await fetch('/api/generate-questions', {
           method: 'POST',
@@ -67,41 +67,65 @@ export default function Home() {
         });
         
         if (!response.ok) {
-          throw new Error(`Failed loading ${category} section (Status ${response.status}).`);
+          throw new Error(`Failed loading ${category} section.`);
         }
         return await response.json();
       };
 
       if (testMode === 'practice') {
-        // Practice Mode: Single focused chunk target (5 for Cloze text, 15 for standard items)
+        // Practice Mode: Single independent block fetch
         const targetCount = selectedCategory === 'Cloze' ? 5 : 15;
         const practiceData = await fetchSection(selectedCategory as any, targetCount);
         setShuffledQuestions(practiceData);
+        setIsExamStarted(true);
       } else {
-        // Full Simulation Mode: Execute parallel server requests to generate each section block cleanly
-        const [grammarBlock, vocabularyBlock, clozeBlock, readingBlock] = await Promise.all([
-          fetchSection('Grammar', 15),
-          fetchSection('Vocabulary', 15),
-          fetchSection('Cloze', 5),
-          fetchSection('Reading', 15)
-        ]);
+        // --- Full Simulation Mode Sequence ---
+        
+        // 1. Fetch Grammar first and launch the application layout immediately
+        console.log("Fetching Grammar block...");
+        const grammarBlock = await fetchSection('Grammar', 15);
+        setShuffledQuestions(grammarBlock);
+        setIsExamStarted(true); 
+        setIsLoading(false); // Release loading state so the user can start testing right away!
 
-        // Merge components strictly in official chronological MET order
-        const full50QuestionExam = [
-          ...grammarBlock,
-          ...vocabularyBlock,
-          ...clozeBlock,
-          ...readingBlock
-        ];
+        // Reusable sleep helper to maintain a 5-second breath space
+        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-        setShuffledQuestions(full50QuestionExam);
+        // 2. Fetch Vocabulary after 5 seconds in the background
+        await sleep(5000);
+        console.log("Fetching Vocabulary block in background...");
+        try {
+          const vocabularyBlock = await fetchSection('Vocabulary', 15);
+          setShuffledQuestions((prev) => [...prev, ...vocabularyBlock]);
+        } catch (err) {
+          console.error("Background fetch for Vocabulary failed", err);
+        }
+
+        // 3. Fetch Cloze after another 5 seconds in the background
+        await sleep(5000);
+        console.log("Fetching Cloze block in background...");
+        try {
+          const clozeBlock = await fetchSection('Cloze', 5);
+          setShuffledQuestions((prev) => [...prev, ...clozeBlock]);
+        } catch (err) {
+          console.error("Background fetch for Cloze failed", err);
+        }
+
+        // 4. Fetch Reading after another 5 seconds in the background
+        await sleep(5000);
+        console.log("Fetching Reading block in background...");
+        try {
+          const readingBlock = await fetchSection('Reading', 15);
+          setShuffledQuestions((prev) => [...prev, ...readingBlock]);
+        } catch (err) {
+          console.error("Background fetch for Reading failed", err);
+        }
       }
-      
-      setIsExamStarted(true);
     } catch (err: any) {
-      console.error("MET Pagination pipeline failed:", err);
-      setApiError(err.message || "Could not assemble questions from Gemini. Check server logs.");
+      console.error("MET Sequential pipeline failed:", err);
+      setApiError(err.message || "Could not assemble initial setup from Gemini.");
     } finally {
+      // Ensure loading spinner clears out if it failed during the first block
       setIsLoading(false);
     }
   };
@@ -111,7 +135,7 @@ export default function Home() {
     if (!nameInput.trim()) return;
     setStudentName(nameInput.trim());
     
-    // Execute our updated dynamic batched sequence
+    // Execute our updated sequential dynamic pipeline
     fetchFullMETSimulation();
   };
 
@@ -328,6 +352,7 @@ export default function Home() {
                   })}
                 </div>
 
+                {/* PASO 2: Display the rationale explanation banner instantly upon click validation */}
                 {selectedAnswer !== null && currentQuestion.rationale && (
                   <div className="p-4 mb-6 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800 leading-relaxed animate-fadeIn">
                     <strong>Explanation:</strong> {currentQuestion.rationale}
